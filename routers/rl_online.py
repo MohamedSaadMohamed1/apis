@@ -9,7 +9,6 @@ router = APIRouter(
 
 @router.get("/")
 def read_rl_data():
-    # Replace 'RL_ONLINE' with the correct attribute from DatabaseConfig if needed
     connection = get_db_connection(DatabaseConfig.TRAFFIC_MANAGER)  # <-- Change to your RL DB config
     try:
         with connection.cursor(pymysql.cursors.DictCursor) as cursor:
