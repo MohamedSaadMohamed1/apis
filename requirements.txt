@@ -4,3 +4,5 @@ pymysql>=1.0.2
 python-dotenv>=0.19.0
 bcrypt>=3.2.0
 pyjwt>=2.0.0
+UserWarning: Valid config keys have changed in V2:
+* 'orm_mode' has been renamed to 'from_attributes'
