@@ -3,35 +3,53 @@ FROM python:3.10-slim AS builder
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential gcc && rm -rf /var/lib/apt/lists/*
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies in a virtual environment
+# Create and activate virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install Python dependencies
 COPY requirements.txt .
-RUN python -m venv /opt/venv \
-    && /opt/venv/bin/pip install --upgrade pip \
-    && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
 
-# --- Final image ---
+# --- Runtime stage ---
 FROM python:3.10-slim
 
-ENV PATH="/opt/venv/bin:$PATH"
+# Platform-agnostic environment setup
+ENV PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    PORT=8000 \
+    HOST=0.0.0.0
+
 WORKDIR /app
 
-# Copy virtual environment from builder
+# Copy virtual environment
 COPY --from=builder /opt/venv /opt/venv
 
-# Copy application code
+# Copy application code (with .dockerignore in place)
 COPY . .
 
-# Create a non-root user
-RUN useradd -m appuser && chown -R appuser /app
+# Create non-root user and permissions
+RUN useradd -m appuser \
+    && chown -R appuser:appuser /app \
+    && mkdir -p /app/tmp \
+    && chown appuser:appuser /app/tmp
+
 USER appuser
 
-EXPOSE 8000
+# Health check (for platforms that support it)
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:$PORT/health || exit 1
 
-CMD ["/opt/venv/bin/uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Universal run command
+CMD ["sh", "-c", "uvicorn main:app --host $HOST --port $PORT"]
